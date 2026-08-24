@@ -1,8 +1,7 @@
-from PyQt6.QtGui import QDoubleValidator, QIntValidator
 from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QPushButton, QGridLayout, QVBoxLayout, QHBoxLayout, QSlider, QLabel, QComboBox, QStackedWidget, QLineEdit, QSizePolicy
-from PyQt6.QtCore import QThread, QObject, pyqtSignal, QTimer, Qt, QRunnable, QThreadPool, pyqtSlot
+from PyQt6.QtCore import QThread, QObject, pyqtSignal, QTimer, Qt, QRunnable, QThreadPool, pyqtSlot, QRectF, QPointF, QSizeF
 from rtlsdr import RtlSdr
-import numpy as np, pyqtgraph as pg, sys, threading  
+import numpy as np, pyqtgraph as pg, sys, threading  # Use threading to start and stop threads
 
 # SDR Initialization (RTL-SDR Blogv3) to Starting Settings
 try:  # checks if the SDR is connected correctly
@@ -65,8 +64,8 @@ class SDRWorker1(QObject):
             self.PSD_avg = (1 - self.VBW_val / self.fft_size) * self.PSD_avg + (self.VBW_val / self.fft_size) * PSD
             self.PSD_Plot_Update.emit(self.PSD_avg)
 
-            self.waterfall[:] = np.roll(self.waterfall, 1, axis=1)  
-            self.waterfall[:, 0] = PSD  
+            self.waterfall[:] = np.roll(self.waterfall, 1, axis=1)  # shifts waterfall 1 row
+            self.waterfall[:, 0] = PSD  # Update last row with new fft results
             self.WaterFall_Update.emit(self.waterfall)
 
         self.EOR.emit()
@@ -172,8 +171,8 @@ class MainWindow(QMainWindow):
         WaterFallPlot.addItem(WaterFallImage)
 
         WaterFallColor = pg.HistogramLUTWidget()
-        WaterFallColor.setImageItem(WaterFallImage)  
-        WaterFallColor.item.gradient.loadPreset('viridis')  
+        WaterFallColor.setImageItem(WaterFallImage)  # connects colorbar to spectrogram
+        WaterFallColor.item.gradient.loadPreset('viridis')  # color mpa, sets the SpecImage
         WaterFallImage.setLevels((-40, 40))
 
         WaterFallWidget = QWidget()
@@ -262,7 +261,7 @@ class MainWindow(QMainWindow):
         FrequencyCorrectLabel = QLabel()
         FrequencyCorrectLabel.setText(f"Frequency\nCorrection: {self.freq_correction} PPM")
         FrequencyCorrect = QSlider(Qt.Orientation.Horizontal)
-        FrequencyCorrect.setRange(0, 200)  
+        FrequencyCorrect.setRange(0, 200)  # figure out the max and min values, blog will not accept values less than 0
         FrequencyCorrect.setTickInterval(1)
         FrequencyCorrect.setValue(60)
         def FreqCorrectUpdate(val):
@@ -315,10 +314,10 @@ class MainWindow(QMainWindow):
 
         def MakeCursor(AngleVal, position):
             CursorLabelOptions = {'movable': True, 'color': 'black', 'fill' : 'white', 'position' : 0.75}  # For the cursors placed on the plot(s)
-            Cursor = pg.InfiniteLine(pen=pg.mkPen('#ff0000', width=3), label="", angle=AngleVal, pos=position, labelOpts=CursorLabelOptions, movable=True) 
+            Cursor = pg.InfiniteLine(pen=pg.mkPen('#ff0000', width=3), label="", angle=AngleVal, pos=position, labelOpts=CursorLabelOptions, movable=True)  # 0 is a starting position
             Cursor.label.setText(f"{Cursor.value():.4f}")
             def CursorValueUpdate():
-                Cursor.label.setText(f"{Cursor.value():.4f}")
+                Cursor.label.setText(f"{Cursor.value():.4f}")  # updates the cursor label, val is truncated to 4 decimal places
             Cursor.sigPositionChanged.connect(CursorValueUpdate)
             return Cursor
 
@@ -521,6 +520,7 @@ class MainWindow(QMainWindow):
             FreqSpectrum_Curve.setData(Frequency_axis, PlotData)
         def WaterFall_CallBack(waterfall):
             WaterFallImage.setImage(waterfall, autolevels=True)
+            WaterFallImage.setRect(QRectF(self.center_freq - self.sample_rate/2, 0, self.sample_rate, worker1.num_rows))
 
         worker1.Time_Plot_Update.connect(TimePlot_Callback)
         worker1.PSD_Plot_Update.connect(PSD_Plot_Callback)
@@ -532,7 +532,7 @@ class MainWindow(QMainWindow):
         self.sdr_thread1.start()
 
 app = QApplication([])
-window = MainWindow() 
+window = MainWindow() #creates a window
 window.show()
-app.exec()  
+app.exec()  # starts the event loop
 sdr.close()  # closes SDR once the GUI is closed
