@@ -1,7 +1,4 @@
 # RTL-SDR Spectrum Analyzer
-Real-time SDR-based spectrum analyzer in Python (PyQt6 + RTL-SDR) with waterfall, PSD, and time-domain views.
-
-# RTL-SDR Spectrum Analyzer
 
 A real-time RF spectrum analyzer built in Python, using an RTL-SDR Blog V3 dongle to capture and visualize live radio signals.
 
