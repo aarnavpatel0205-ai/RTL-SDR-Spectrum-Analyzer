@@ -278,16 +278,26 @@ class MainWindow(QMainWindow):
         RBWEdit = QLineEdit(f"{worker1.fft_size} Hz")
         RBWEdit.setReadOnly(True)
         def RBW_Update():
-            val = int(NumsOnly(RBWEdit.text()))
-            if (val < 5):
-                RBWEdit.setText("Too Low")
-                return
-            RBWEdit.setText(f"{val} Hz")
-            FFT_size = int(sdr.sample_rate/val)
-            worker1.fft_size = FFT_size
-            worker1.PSD_avg = np.ones(FFT_size)
-            worker1.spectrogram = np.ones((1, FFT_size))
-            worker1.waterfall = np.ones((FFT_size, worker1.num_rows))
+            try:
+                val = int(NumsOnly(RBWEdit.text()))
+            except ValueError:
+                RBWEdit.setText("Invalid RBW")
+                PlayButton.setEnabled(False)
+            else:
+                if (val < 5):
+                    RBWEdit.setText("Too Low")
+                    return
+                RBWEdit.setText(f"{val} Hz")
+                FFT_size = int(sdr.sample_rate/val)
+                if(FFT_size > 3999000 or FFT_size < 5): #size limits on FFT due to hardware 
+                    RBWEdit.setText("Invalid RBW")
+                    PlayButton.setEnabled(False)
+                    return
+                PlayButton.setEnabled(True)
+                worker1.fft_size = FFT_size
+                worker1.PSD_avg = np.ones(FFT_size)
+                worker1.spectrogram = np.ones((1, FFT_size))
+                worker1.waterfall = np.ones((FFT_size, worker1.num_rows))
         RBWEdit.editingFinished.connect(RBW_Update)
 
         # Video BandWidth (VBW) control
