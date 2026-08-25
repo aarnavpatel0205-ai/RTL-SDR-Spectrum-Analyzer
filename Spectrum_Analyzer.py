@@ -21,9 +21,9 @@ class SDRWorker1(QObject):
         self._pause_event = threading.Event()
         self._lock = threading.Lock()  # Used to prevent RBWEdit from changing the fft_size while Main_Loop is using it
         self.num_rows = 200  # for waterfall
-        self.fft_size = 2048  # 2048 is starting number, same case for self.RBW_val
-        self.RBW_val = 2048
+        self.RBW_val = 1000
         self.VBW_val = 50
+        self.fft_size = int(sdr.sample_rate/self.RBW_val)  # 2048 is starting number, same case for self.RBW_val
         self.time_plot_samples = 1000  # number of points shown on time plot
         self.WindowFunct = np.hamming(self.fft_size)
         self.WindowFunctIndex = 0
@@ -246,7 +246,7 @@ class MainWindow(QMainWindow):
         # Resolution Bandwith (RBW) control
         RBWLabel = QLabel()
         RBWLabel.setText("RBW: ")
-        RBWEdit = QLineEdit(f"{worker1.fft_size} Hz")
+        RBWEdit = QLineEdit(f"{worker1.RBW_val} Hz")
         RBWEdit.setReadOnly(True)
         def RBW_Update():
             try:
