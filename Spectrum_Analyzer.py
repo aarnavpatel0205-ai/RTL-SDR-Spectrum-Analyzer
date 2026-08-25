@@ -503,15 +503,12 @@ class MainWindow(QMainWindow):
         def WaterFall_CallBack(waterfall):
             WaterFallImage.setImage(waterfall, autolevels=True)
             WaterFallImage.setRect(QRectF(self.center_freq - self.sample_rate/2, 0, self.sample_rate, worker1.num_rows))
-        def EOR_CallBack():
-            #RBWEdit.setText(f"{int(sdr.sample_rate/worker1.fft_size)}")
-            QTimer.singleShot(0, worker1.Main_Loop)
 
         worker1.Time_Plot_Update.connect(TimePlot_Callback)
         worker1.PSD_Plot_Update.connect(PSD_Plot_Callback)
         worker1.FreqSpectrumPlot_Update.connect(FrequencySpectrum_Callback)
         worker1.WaterFall_Update.connect(WaterFall_CallBack)
-        worker1.EOR.connect(EOR_CallBack)
+        worker1.EOR.connect(lambda: QTimer.singleShot(0, worker1.Main_Loop))
 
         self.sdr_thread1.started.connect(worker1.Main_Loop)
         self.sdr_thread1.start()
