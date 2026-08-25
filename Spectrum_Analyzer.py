@@ -21,7 +21,8 @@ class SDRWorker1(QObject):
         self._pause_event = threading.Event()
         self._lock = threading.Lock()  # Used to prevent RBWEdit from changing the fft_size while Main_Loop is using it
         self.num_rows = 200  # for waterfall
-        self.fft_size = 2048  # 2048 is starting number
+        self.fft_size = 2048  # 2048 is starting number, same case for self.RBW_val
+        self.RBW_val = 2048
         self.VBW_val = 50
         self.time_plot_samples = 1000  # number of points shown on time plot
         self.WindowFunct = np.hamming(self.fft_size)
@@ -74,38 +75,11 @@ class SDRWorker1(QObject):
     def resume(self):
         self._pause_event.set()  # resume the thread
 
-SubWorkerTemps = [0, 0, 0, 0]
-class SubWorker(QRunnable):
-    def __init__(self, gain_val, SR_val, CF_val, FC_val):
-        super().__init__()
-        self.Gval = gain_val
-        self.SRval = SR_val
-        self.CFval = CF_val
-        self.FCval = FC_val
-    @pyqtSlot()
-    def run(self):
-        global SubWorkerTemps
-        try:
-            if self.Gval != SubWorkerTemps[0]:
-                sdr.gain = self.Gval
-                SubWorkerTemps[0] = self.Gval
-            elif self.SRval != SubWorkerTemps[1]:
-                sdr.sample_rate = self.SRval
-                SubWorkerTemps[1] = self.SRval
-            elif self.CFval != SubWorkerTemps[2]:
-                sdr.center_freq = self.CFval
-                SubWorkerTemps[2] = self.SRval
-            elif self.FCval != SubWorkerTemps[3]:
-                sdr.freq_correction = self.FCval
-                SubWorkerTemps[3] = self.SRval
-        except:
-            print(f"Unknown Error {Exception}")
-
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.center_freq = 100e6
-        self.sample_rates = [0.5e6, 1e6, 1.25e6, 1.5e6, 1.75e6, 2e6, 2.048e6, 2.25e6, 2.4e6, 2.5e6, 2.75e6, 3e6, 3.2e6]  # Hz
+        self.sample_rates = [1e6, 1.25e6, 1.5e6, 1.75e6, 2e6, 2.048e6, 2.25e6, 2.4e6, 2.5e6, 2.75e6, 3e6, 3.2e6]  # Hz
         self.sample_rate = self.sample_rates[0] #1st element (1e6 Hz) as the starting value
         self.freq_correction = 60
         self.gains = [0.0, 0.9, 1.4, 2.7, 3.7, 7.7, 8.7, 12.5, 14.4, 15.7, 16.6, 19.7, 20.7, 22.9, 25.4, 28.0, 29.7,
@@ -124,7 +98,6 @@ class MainWindow(QMainWindow):
         self.sdr_thread1 = QThread()
         worker1 = SDRWorker1()
         worker1.moveToThread(self.sdr_thread1)
-        self.ThrPool = QThreadPool()
 
         TimeIPlot = pg.PlotWidget()
         TimeIPlot.setYRange(-1, 1)
@@ -207,7 +180,7 @@ class MainWindow(QMainWindow):
         GainLabel.setText("Gain: ")
         def UpdateGain(val):
             worker1.pause()
-            self.ThrPool.start(SubWorker(self.gains[val], SubWorkerTemps[1], SubWorkerTemps[2], SubWorkerTemps[3]))
+            sdr.gain = self.gains[val]
             worker1.resume()
         GainComboBox.currentIndexChanged.connect(lambda : UpdateGain(GainComboBox.currentIndex()))
 
@@ -219,11 +192,9 @@ class MainWindow(QMainWindow):
         SpanLabel.setText("Span: ")
         def UpdateSR(val):
             worker1.pause()
-            self.ThrPool.start(
-                SubWorker(SubWorkerTemps[0], self.sample_rates[val], SubWorkerTemps[2], SubWorkerTemps[3]))
+            sdr.sample_rate = self.sample_rates[val]
             self.sample_rate = self.sample_rates[val]
-            PSD_Plot.setXRange((self.center_freq - self.sample_rate / 2),
-                                    (self.center_freq + self.sample_rate / 2))  # Units in Hz
+            PSD_Plot.setXRange((self.center_freq - self.sample_rate / 2), (self.center_freq + self.sample_rate / 2))  # Units in Hz
             worker1.resume()
         SpanComboBox.currentIndexChanged.connect(lambda: UpdateSR(SpanComboBox.currentIndex()))
 
@@ -242,7 +213,7 @@ class MainWindow(QMainWindow):
             if(float(NumsOnly(CenterFrequencyLabelEdit.text())) > 15.0):
                 self.center_freq = float(NumsOnly(CenterFrequencyLabelEdit.text())) * 1e6
                 CenterFrequencyLabelEdit.setText(f"{self.center_freq / 1e6} MHz")
-                self.ThrPool.start(SubWorker(SubWorkerTemps[0], SubWorkerTemps[1], self.center_freq, SubWorkerTemps[3]))
+                sdr.center_freq = self.center_freq
                 worker1.resume()
             else:
                 self.center_freq = temp
@@ -266,8 +237,8 @@ class MainWindow(QMainWindow):
         FrequencyCorrect.setValue(60)
         def FreqCorrectUpdate(val):
             worker1.pause()
+            sdr.freq_correction = val
             self.freq_correction = val
-            self.ThrPool.start(SubWorker(SubWorkerTemps[0], SubWorkerTemps[1], SubWorkerTemps[2], val))
             worker1.resume()
         FrequencyCorrect.sliderMoved.connect(lambda: FrequencyCorrectLabel.setText(f"Frequency Correction: {FrequencyCorrect.value()} PPM"))
         FrequencyCorrect.sliderReleased.connect(lambda: FreqCorrectUpdate(FrequencyCorrect.value()))
@@ -288,8 +259,9 @@ class MainWindow(QMainWindow):
                     RBWEdit.setText("Too Low")
                     return
                 RBWEdit.setText(f"{val} Hz")
+                worker1.RBW_val = val
                 FFT_size = int(sdr.sample_rate/val)
-                if(FFT_size > 3999000 or FFT_size < 5): #size limits on FFT due to hardware 
+                if(FFT_size > 3999000 or FFT_size < 5): #size limits on FFT due to hardware
                     RBWEdit.setText("Invalid RBW")
                     PlayButton.setEnabled(False)
                     return
@@ -531,12 +503,15 @@ class MainWindow(QMainWindow):
         def WaterFall_CallBack(waterfall):
             WaterFallImage.setImage(waterfall, autolevels=True)
             WaterFallImage.setRect(QRectF(self.center_freq - self.sample_rate/2, 0, self.sample_rate, worker1.num_rows))
+        def EOR_CallBack():
+            #RBWEdit.setText(f"{int(sdr.sample_rate/worker1.fft_size)}")
+            QTimer.singleShot(0, worker1.Main_Loop)
 
         worker1.Time_Plot_Update.connect(TimePlot_Callback)
         worker1.PSD_Plot_Update.connect(PSD_Plot_Callback)
         worker1.FreqSpectrumPlot_Update.connect(FrequencySpectrum_Callback)
         worker1.WaterFall_Update.connect(WaterFall_CallBack)
-        worker1.EOR.connect(lambda: QTimer.singleShot(0, worker1.Main_Loop))
+        worker1.EOR.connect(EOR_CallBack)
 
         self.sdr_thread1.started.connect(worker1.Main_Loop)
         self.sdr_thread1.start()
