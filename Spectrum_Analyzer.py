@@ -32,7 +32,7 @@ class SDRWorker1(QObject):
         self.FrequencySpectrumData = np.ones(self.fft_size)
         self.waterfall = np.ones((self.fft_size, self.num_rows))
         self.Beta_Val = 0.35
-    
+
     EOR = pyqtSignal()
     Time_Plot_Update = pyqtSignal(np.ndarray)
     PSD_Plot_Update = pyqtSignal(np.ndarray)
@@ -426,7 +426,7 @@ class MainWindow(QMainWindow):
             Cursor.sigPositionChanged.connect(CursorValueUpdate)
             return Cursor
 
-        TimeCursorButton = QPushButton("Time") #One TimeCursorButton per CursorStack, both function similarly
+        TimeCursorButton = QPushButton("Time") #One TimeCursorButton per CursorStack, but both do similar things
         TimeCursorButton2 = QPushButton("Time")
         def AddTimeCursor():
             match WidgetStack.currentIndex():
