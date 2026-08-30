@@ -599,17 +599,11 @@ class MainWindow(QMainWindow):
             TimePlot_Icurve.setData(samples.real, pen=pg.mkPen(color='c'))
             TimePlot_Qcurve.setData(samples.imag, pen=pg.mkPen(color=(255, 165, 0)))  # orange color
         def PSD_Plot_Callback(PSD):
-            try:
-                Frequency_axis = np.linspace(sdr.center_freq - sdr.sample_rate / 2, sdr.center_freq + sdr.sample_rate / 2, SDR_Math_worker.fft_size)
-                PSD_Plot_Curve.setData(Frequency_axis, PSD)
-            except:
-                print("Sizing error, trying again...")
+            Frequency_axis = np.linspace(sdr.center_freq - sdr.sample_rate / 2, sdr.center_freq + sdr.sample_rate / 2, self.ValidateWorker.FFT_size)
+            PSD_Plot_Curve.setData(Frequency_axis, PSD)
         def FrequencySpectrum_Callback(PlotData):
-            try:
-                Frequency_axis = np.linspace(sdr.center_freq - sdr.sample_rate / 2, sdr.center_freq + sdr.sample_rate / 2, SDR_Math_worker.fft_size)
-                FreqSpectrum_Curve.setData(Frequency_axis, PlotData)
-            except:
-                print("Sizing error2, trying again...")
+            Frequency_axis = np.linspace(sdr.center_freq - sdr.sample_rate / 2, sdr.center_freq + sdr.sample_rate / 2, self.ValidateWorker.FFT_size)
+            FreqSpectrum_Curve.setData(Frequency_axis, PlotData)
         def WaterFall_CallBack(waterfall):
             WaterFallImage.setImage(waterfall, autolevels=True)
             WaterFallImage.setRect(QRectF(sdr.center_freq - sdr.sample_rate/2, 0, sdr.sample_rate, SDR_Math_worker.num_rows))
