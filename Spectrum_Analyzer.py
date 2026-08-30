@@ -24,8 +24,8 @@ class SDRWorker1(QObject):
         self.RBW_val = 1000
         self.VBW_val = 50.0
         self.fft_size = int(sdr.sample_rate/self.RBW_val)
+        self.temp_fft_size = self.fft_size #updates each iteration of Main_Loop
         self.time_plot_samples = 1000  # number of points shown on time plot
-        self.WindowFunct = np.hamming(self.fft_size)
         self.WindowFunctIndex = 0
         self.num_frames = self.fft_size
         self.PSD_avg = np.ones(self.fft_size)
@@ -56,27 +56,26 @@ class SDRWorker1(QObject):
 
     def Main_Loop(self):
         self._pause_event.wait()  # .wait() forces a thread to wait until the event is set
-        temp_size = self.fft_size
+        self.temp_fft_size = self.fft_size
         def WindowFunct(index):
             match (index):
-                case 0: return np.hamming(temp_size)
-                case 1: return np.hanning(temp_size)
-                case 2: return np.blackman(temp_size)
-                case 3: return np.bartlett(temp_size)
-                case 4: return np.kaiser(temp_size, self.Beta_Val)
+                case 0: return np.hamming(self.temp_fft_size)
+                case 1: return np.hanning(self.temp_fft_size)
+                case 2: return np.blackman(self.temp_fft_size)
+                case 3: return np.bartlett(self.temp_fft_size)
+                case 4: return np.kaiser(self.temp_fft_size, self.Beta_Val)
                 case 5: return 1 #rectangular window, (aka no window)
                 case _: pass
         with self._lock:
-            Samples = sdr.read_samples(temp_size)
+            Samples = sdr.read_samples(self.temp_fft_size)
             self.Time_Plot_Update.emit(Samples[0:self.time_plot_samples])
 
-            self.WindowFunct = WindowFunct(self.WindowFunctIndex)
-            Samples = Samples * self.WindowFunct  # Windowing
+            Samples = Samples * WindowFunct(self.WindowFunctIndex)
             self.FrequencySpectrumData = abs(np.fft.fftshift(np.fft.fft(Samples)))
             self.FreqSpectrumPlot_Update.emit(self.FrequencySpectrumData)
 
-            PSD = 10 * np.log10(np.abs(np.fft.fftshift(np.fft.fft(Samples))) ** 2 / temp_size)
-            self.PSD_avg = (1 - self.VBW_val / temp_size) * self.PSD_avg + (self.VBW_val / temp_size) * PSD
+            PSD = 10 * np.log10(np.abs(np.fft.fftshift(np.fft.fft(Samples))) ** 2 / self.temp_fft_size)
+            self.PSD_avg = (1 - self.VBW_val / self.temp_fft_size) * self.PSD_avg + (self.VBW_val / self.temp_fft_size) * PSD
             self.PSD_Plot_Update.emit(self.PSD_avg)
 
             self.waterfall[:] = np.roll(self.waterfall, 1, axis=1)  # shifts waterfall 1 row
@@ -93,10 +92,7 @@ class SettingValidator(QObject):
     FFT_Signal = pyqtSignal(int)
     VBW_Signal = pyqtSignal(float)
     Beta_Signal = pyqtSignal(float)
-    RBWMessage = pyqtSignal(str)
-    FreqMessage = pyqtSignal(str)
-    VBWMessage = pyqtSignal(str)
-    BetaMessage = pyqtSignal(str)
+    Message = pyqtSignal(str)
 
     def NumsOnly(self,StringtoFilter):
         for i in StringtoFilter:
@@ -119,73 +115,73 @@ class SettingValidator(QObject):
     def Get_Center_freq(self, center_freq):
         center_freq_num = self.NumsOnly(center_freq)
         if(len(center_freq_num) == 0):
-            self.FreqMessage.emit("Invalid")
+            self.Message.emit("Invalid")
             return
         else:
             center_freq_num = float(center_freq_num)
         if (center_freq_num == (sdr.center_freq / 1e6)):
-            self.FreqMessage.emit(f"{center_freq_num} MHz")
+            self.Message.emit(f"{center_freq_num} MHz")
             return
         if (center_freq_num > 15.0):
             sdr.center_freq = center_freq_num * 1e6
-            self.FreqMessage.emit(f"{center_freq_num} MHz")
+            self.Message.emit(f"{center_freq_num} MHz")
             self.validate()
         else:
-            self.FreqMessage.emit("Invalid")
+            self.Message.emit("Invalid")
 
     @pyqtSlot(str)
     def Get_RBW(self, RBW):
         RBW = self.NumsOnly(RBW)
         if(len(RBW) == 0):
-            self.RBWMessage.emit("Invalid")
+            self.Message.emit("Invalid")
             return
         else:
             RBW = float(RBW)
         if (RBW == self.RBW_val):
-            self.RBWMessage.emit(f"{RBW} Hz")
+            self.Message.emit(f"{RBW} Hz")
             return
         if (RBW < 5):
-            self.RBWMessage.emit("Invalid")
+            self.Message.emit("Invalid")
             return
         self.RBW_val = RBW
         self.validate()
-        self.RBWMessage.emit(f"{RBW} Hz")
+        self.Message.emit(f"{RBW} Hz")
 
     @pyqtSlot(str)
     def Get_VBW(self, VBW):
         VBW = self.NumsOnly(VBW)
         if(len(VBW) == 0):
-            self.VBWMessage.emit("Invalid")
+            self.Message.emit("Invalid")
             return
         else:
             VBW = float(VBW)
         if (VBW == self.VBW_val):
-            self.VBWMessage.emit(f"{VBW} Hz")
+            self.Message.emit(f"{VBW} Hz")
             return
         if (VBW <= 0.0 or VBW > self.RBW_val):
-            self.VBWMessage.emit("Invalid")
+            self.Message.emit("Invalid")
             return
         self.VBW_val = VBW
         self.VBW_Signal.emit(VBW)
-        self.VBWMessage.emit(f"{VBW} Hz")
+        self.Message.emit(f"{VBW} Hz")
 
     @pyqtSlot(str)
     def Get_Beta(self, Beta):
         Beta = self.NumsOnly(Beta)
         if(len(Beta) == 0):
-            self.BetaMessage.emit("Invalid")
+            self.Message.emit("Invalid")
             return
         else:
             Beta = float(Beta)
         if(Beta == self.Beta_val):
-            self.BetaMessage.emit(f"{Beta} Hz")
+            self.Message.emit(f"{Beta}")
             return
         if(Beta < 0.0 or Beta > 1.0):
-            self.BetaMessage.emit("Invalid")
+            self.Message.emit("Invalid")
             return
         self.Beta_val = Beta
         self.Beta_Signal.emit(Beta)
-        self.BetaMessage.emit(f"{Beta} Hz")
+        self.Message.emit(f"{Beta}")
 
     def validate(self):
         self.FFT_size = int(sdr.sample_rate/self.RBW_val)
@@ -217,12 +213,12 @@ class MainWindow(QMainWindow):
         self.ValidateWorker.moveToThread(self.validate_thread)
 
         self.sdr_thread1 = QThread()
-        SDR_Math_worker = SDRWorker1()
-        SDR_Math_worker.moveToThread(self.sdr_thread1)
+        self.SDR_Math_worker = SDRWorker1()
+        self.SDR_Math_worker.moveToThread(self.sdr_thread1)
 
-        self.ValidateWorker.FFT_Signal.connect(SDR_Math_worker.Set_FFT_Size)
-        self.ValidateWorker.VBW_Signal.connect(SDR_Math_worker.Set_VBW)
-        self.ValidateWorker.Beta_Signal.connect(SDR_Math_worker.Set_Beta)
+        self.ValidateWorker.FFT_Signal.connect(self.SDR_Math_worker.Set_FFT_Size)
+        self.ValidateWorker.VBW_Signal.connect(self.SDR_Math_worker.Set_VBW)
+        self.ValidateWorker.Beta_Signal.connect(self.SDR_Math_worker.Set_Beta)
 
         TimeIPlot = pg.PlotWidget()
         TimeIPlot.setYRange(-1, 1)
@@ -288,12 +284,12 @@ class MainWindow(QMainWindow):
 
         PlayButton = QPushButton("Play")
         def PlayButtonAction():
-            SDR_Math_worker.resume()
+            self.SDR_Math_worker.resume()
         PlayButton.clicked.connect(PlayButtonAction)
 
         StopButton = QPushButton("Stop")
         def StopButtonAction():
-            SDR_Math_worker.pause()
+            self.SDR_Math_worker.pause()
         StopButton.clicked.connect(StopButtonAction)
 
         GainComboBox = QComboBox()
@@ -302,9 +298,9 @@ class MainWindow(QMainWindow):
         GainLabel = QLabel()
         GainLabel.setText("Gain: ")
         def UpdateGain(val):
-            SDR_Math_worker.pause()
+            self.SDR_Math_worker.pause()
             sdr.gain = self.gains[val]
-            SDR_Math_worker.resume()
+            self.SDR_Math_worker.resume()
         GainComboBox.currentIndexChanged.connect(lambda : UpdateGain(GainComboBox.currentIndex()))
 
         # Sampling Rate (SR) Selection Drop Down, Span Control
@@ -314,25 +310,26 @@ class MainWindow(QMainWindow):
         SpanLabel = QLabel()
         SpanLabel.setText("Span: ")
         def UpdateSR(val):
-            SDR_Math_worker.pause()
+            self.SDR_Math_worker.pause()
             sdr.sample_rate = self.sample_rates[val]
             PSD_Plot.setXRange((sdr.center_freq - sdr.sample_rate / 2), (sdr.center_freq + sdr.sample_rate / 2))  # Units in Hz
-            SDR_Math_worker.resume()
+            self.SDR_Math_worker.resume()
         SpanComboBox.currentIndexChanged.connect(lambda: UpdateSR(SpanComboBox.currentIndex()))
 
         CenterFrequencyLabel = QLabel()
         CenterFrequencyEdit = QLineEdit(f"{sdr.center_freq/1e6} MHz")
         CenterFrequencyLabel.setText("Center\nFrequency:")
         def CenterFreqVal():
-            SDR_Math_worker.pause()
+            self.SDR_Math_worker.pause()
+            self.ValidateWorker.Message.connect(CenterFreqLabel_Update)
             self.ValidateWorker.Get_Center_freq(CenterFrequencyEdit.text())
-            SDR_Math_worker.resume()
+            self.ValidateWorker.Message.disconnect(CenterFreqLabel_Update)
+            self.SDR_Math_worker.resume()
         CenterFrequencyEdit.editingFinished.connect(CenterFreqVal)
 
         @pyqtSlot(str)
         def CenterFreqLabel_Update(CenterFreq_Message):
             CenterFrequencyEdit.setText(CenterFreq_Message)
-        self.ValidateWorker.FreqMessage.connect(CenterFreqLabel_Update)
 
         TimePlotAuto = QPushButton("Time Plot\nAuto Range")
         def TimeAutoRange():
@@ -349,42 +346,44 @@ class MainWindow(QMainWindow):
         FrequencyCorrect.setTickInterval(1)
         FrequencyCorrect.setValue(60)
         def FreqCorrectUpdate(val):
-            SDR_Math_worker.pause()
+            self.SDR_Math_worker.pause()
             sdr.freq_correction = val
-            SDR_Math_worker.resume()
+            self.SDR_Math_worker.resume()
         FrequencyCorrect.sliderMoved.connect(lambda: FrequencyCorrectLabel.setText(f"Frequency Correction: {FrequencyCorrect.value()} PPM"))
         FrequencyCorrect.sliderReleased.connect(lambda: FreqCorrectUpdate(FrequencyCorrect.value()))
 
         # Resolution Bandwith (RBW) control
         RBWLabel = QLabel()
         RBWLabel.setText("RBW: ")
-        RBWEdit = QLineEdit(f"{SDR_Math_worker.RBW_val} Hz")
+        RBWEdit = QLineEdit(f"{self.SDR_Math_worker.RBW_val} Hz")
         def RBW_Update():
-            SDR_Math_worker.pause()
+            self.SDR_Math_worker.pause()
+            self.ValidateWorker.Message.connect(RBW_Edit_Update)
             self.ValidateWorker.Get_RBW(RBWEdit.text())
-            SDR_Math_worker.resume()
+            self.ValidateWorker.Message.disconnect(RBW_Edit_Update)
+            self.SDR_Math_worker.resume()
         RBWEdit.editingFinished.connect(RBW_Update)
 
         @pyqtSlot(str)
         def RBW_Edit_Update(RBW_Message):
             RBWEdit.setText(RBW_Message)
-        self.ValidateWorker.RBWMessage.connect(RBW_Edit_Update)
 
         # Video BandWidth (VBW) control
         VBWLabel = QLabel()
         VBWLabel.setText("VBW: ")
         VBWEdit = QLineEdit()
-        VBWEdit.setText(f"{SDR_Math_worker.VBW_val} Hz")
+        VBWEdit.setText(f"{self.SDR_Math_worker.VBW_val} Hz")
         def VBW_Update():
-            SDR_Math_worker.pause()
+            self.SDR_Math_worker.pause()
+            self.ValidateWorker.Message.connect(VBW_Edit_Update)
             self.ValidateWorker.Get_VBW(VBWEdit.text())
-            SDR_Math_worker.resume()
+            self.ValidateWorker.Message.disconnect(VBW_Edit_Update)
+            self.SDR_Math_worker.resume()
         VBWEdit.editingFinished.connect(VBW_Update)
 
         @pyqtSlot(str)
         def VBW_Edit_Update(VBW_Message):
             VBWEdit.setText(VBW_Message)
-        self.ValidateWorker.VBWMessage.connect(VBW_Edit_Update)
 
         WindowFunctSelection = QComboBox()
         WindowFunctSelection.addItems(['Hamming', 'Hanning', 'Blackman', 'Bartlett', 'Kaiser', 'Rectangular'])
@@ -392,22 +391,23 @@ class MainWindow(QMainWindow):
         WindowFunctLabel = QLabel()
         WindowFunctLabel.setText("Window Function")
         def WindowFunctUpdate():
-            SDR_Math_worker.pause()
-            SDR_Math_worker.WindowFunctIndex = WindowFunctSelection.currentIndex()
-            SDR_Math_worker.resume()
+            self.SDR_Math_worker.pause()
+            self.SDR_Math_worker.WindowFunctIndex = WindowFunctSelection.currentIndex()
+            self.SDR_Math_worker.resume()
         WindowFunctSelection.currentIndexChanged.connect(WindowFunctUpdate)
 
         BetaLabel = QLabel()
         BetaLabel.setText("Beta: ")
-        BetaEdit = QLineEdit(f"{SDR_Math_worker.Beta_Val}")
+        BetaEdit = QLineEdit(f"{self.SDR_Math_worker.Beta_Val}")
         def Beta_Update():
+            self.ValidateWorker.Message.connect(Beta_Edit_Update)
             self.ValidateWorker.Get_Beta(BetaEdit.text())
+            self.ValidateWorker.Message.disconnect(Beta_Edit_Update)
         BetaEdit.editingFinished.connect(Beta_Update)
 
         @pyqtSlot(str)
         def Beta_Edit_Update(Beta_Message):
             BetaEdit.setText(Beta_Message)
-        self.ValidateWorker.BetaMessage.connect(Beta_Edit_Update)
 
         #Cursors
         CursorDisplayWidget = QWidget()
@@ -599,23 +599,23 @@ class MainWindow(QMainWindow):
             TimePlot_Icurve.setData(samples.real, pen=pg.mkPen(color='c'))
             TimePlot_Qcurve.setData(samples.imag, pen=pg.mkPen(color=(255, 165, 0)))  # orange color
         def PSD_Plot_Callback(PSD):
-            Frequency_axis = np.linspace(sdr.center_freq - sdr.sample_rate / 2, sdr.center_freq + sdr.sample_rate / 2, self.ValidateWorker.FFT_size)
+            Frequency_axis = np.linspace(sdr.center_freq - sdr.sample_rate / 2, sdr.center_freq + sdr.sample_rate / 2, self.SDR_Math_worker.temp_fft_size)
             PSD_Plot_Curve.setData(Frequency_axis, PSD)
         def FrequencySpectrum_Callback(PlotData):
-            Frequency_axis = np.linspace(sdr.center_freq - sdr.sample_rate / 2, sdr.center_freq + sdr.sample_rate / 2, self.ValidateWorker.FFT_size)
+            Frequency_axis = np.linspace(sdr.center_freq - sdr.sample_rate / 2, sdr.center_freq + sdr.sample_rate / 2, self.SDR_Math_worker.temp_fft_size)
             FreqSpectrum_Curve.setData(Frequency_axis, PlotData)
         def WaterFall_CallBack(waterfall):
             WaterFallImage.setImage(waterfall, autolevels=True)
-            WaterFallImage.setRect(QRectF(sdr.center_freq - sdr.sample_rate/2, 0, sdr.sample_rate, SDR_Math_worker.num_rows))
+            WaterFallImage.setRect(QRectF(sdr.center_freq - sdr.sample_rate/2, 0, sdr.sample_rate, self.SDR_Math_worker.num_rows))
 
-        SDR_Math_worker.Time_Plot_Update.connect(TimePlot_Callback)
-        SDR_Math_worker.PSD_Plot_Update.connect(PSD_Plot_Callback)
-        SDR_Math_worker.FreqSpectrumPlot_Update.connect(FrequencySpectrum_Callback)
-        SDR_Math_worker.WaterFall_Update.connect(WaterFall_CallBack)
-        SDR_Math_worker.EOR.connect(lambda: QTimer.singleShot(0, SDR_Math_worker.Main_Loop))
+        self.SDR_Math_worker.Time_Plot_Update.connect(TimePlot_Callback)
+        self.SDR_Math_worker.PSD_Plot_Update.connect(PSD_Plot_Callback)
+        self.SDR_Math_worker.FreqSpectrumPlot_Update.connect(FrequencySpectrum_Callback)
+        self.SDR_Math_worker.WaterFall_Update.connect(WaterFall_CallBack)
+        self.SDR_Math_worker.EOR.connect(lambda: QTimer.singleShot(0, self.SDR_Math_worker.Main_Loop))
 
         self.validate_thread.start()
-        self.sdr_thread1.started.connect(SDR_Math_worker.Main_Loop)
+        self.sdr_thread1.started.connect(self.SDR_Math_worker.Main_Loop)
         self.sdr_thread1.start()
 
 app = QApplication([])
