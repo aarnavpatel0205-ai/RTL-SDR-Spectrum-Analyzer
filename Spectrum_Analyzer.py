@@ -109,7 +109,6 @@ class SettingValidator(QObject):
         self.VBW_val = 50.0
         self.Beta_val = 0.35
         self.FFT_size = int(sdr.sample_rate/self.RBW_val)
-        self.Value = 0
 
     @pyqtSlot(str)
     def Get_Center_freq(self, center_freq):
