@@ -420,10 +420,13 @@ class MainWindow(QMainWindow):
         def MakeCursor(AngleVal, position):
             CursorLabelOptions = {'movable': True, 'color': 'black', 'fill' : 'white', 'position' : 0.75}  # For the cursors placed on the plot(s)
             Cursor = pg.InfiniteLine(pen=pg.mkPen('#ff0000', width=3), label="", angle=AngleVal, pos=position, labelOpts=CursorLabelOptions, movable=True)  # 0 is a starting position
-            Cursor.label.setText(f"{Cursor.value():.4f}")
             def CursorValueUpdate():
-                Cursor.label.setText(f"{Cursor.value():.4f}")  # updates the cursor label, val is truncated to 4 decimal places
+                temp_val = Cursor.value()
+                while(temp_val > 999.9999):
+                    temp_val = temp_val / 10
+                Cursor.label.setText(f"{temp_val:.4f}")  # updates the cursor label, val is truncated to 4 decimal places
             Cursor.sigPositionChanged.connect(CursorValueUpdate)
+            CursorValueUpdate()
             return Cursor
 
         TimeCursorButton = QPushButton("Time") #One TimeCursorButton per CursorStack, but both do similar things
