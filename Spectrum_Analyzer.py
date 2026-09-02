@@ -125,7 +125,7 @@ class SettingValidator(QObject):
         if (center_freq_num > 15.0):
             sdr.center_freq = center_freq_num * 1e6
             self.Message.emit(f"{center_freq_num} MHz")
-            self.validate()
+            self.Validate_FFT_Size()
         else:
             self.Message.emit("Invalid")
 
@@ -144,7 +144,7 @@ class SettingValidator(QObject):
             self.Message.emit("Invalid")
             return
         self.RBW_val = RBW
-        self.validate()
+        self.Validate_FFT_Size()
         self.Message.emit(f"{RBW} Hz")
 
     @pyqtSlot(str)
@@ -183,7 +183,7 @@ class SettingValidator(QObject):
         self.Beta_Signal.emit(Beta)
         self.Message.emit(f"{Beta}")
 
-    def validate(self):
+    def Validate_FFT_Size(self):
         self.FFT_size = int(sdr.sample_rate/self.RBW_val)
         if (self.FFT_size > 3999000 or self.FFT_size < 5):  # size limits on FFT due to hardware
             self.VBWMessage.emit("Invalid")
