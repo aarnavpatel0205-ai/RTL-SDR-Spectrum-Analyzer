@@ -98,14 +98,15 @@ class SettingValidator(QObject):
         for i in StringtoFilter:
             if (i.isdigit() or i == '.'):
                 continue
-            return StringtoFilter[0:StringtoFilter.index(i)]
+            else:
+                return StringtoFilter[0:StringtoFilter.index(i)]
         return StringtoFilter  # if there is nothing to filter
 
     def __init__(self):
         super().__init__()
-        self.RBW_val = 1000.0
+        self.center_freq = sdr.center_freq/1e6
         self.sample_rate = 1e6
-        self.center_freq = sdr.center_freq
+        self.RBW_val = 1000.0
         self.VBW_val = 50.0
         self.Beta_val = 0.35
         self.FFT_size = int(sdr.sample_rate/self.RBW_val)
@@ -113,12 +114,12 @@ class SettingValidator(QObject):
     @pyqtSlot(str)
     def Get_Center_freq(self, center_freq):
         center_freq_num = self.NumsOnly(center_freq)
-        if(len(center_freq_num) == 0):
+        if(center_freq_num == ""):
             self.Message.emit("Invalid")
             return
         else:
             center_freq_num = float(center_freq_num)
-        if (center_freq_num == (sdr.center_freq / 1e6)):
+        if (center_freq_num == self.center_freq):
             self.Message.emit(f"{center_freq_num} MHz")
             return
         if (center_freq_num > 15.0):
@@ -131,7 +132,7 @@ class SettingValidator(QObject):
     @pyqtSlot(str)
     def Get_RBW(self, RBW):
         RBW = self.NumsOnly(RBW)
-        if(len(RBW) == 0):
+        if(RBW == ""):
             self.Message.emit("Invalid")
             return
         else:
@@ -149,7 +150,7 @@ class SettingValidator(QObject):
     @pyqtSlot(str)
     def Get_VBW(self, VBW):
         VBW = self.NumsOnly(VBW)
-        if(len(VBW) == 0):
+        if(VBW == ""):
             self.Message.emit("Invalid")
             return
         else:
@@ -167,7 +168,7 @@ class SettingValidator(QObject):
     @pyqtSlot(str)
     def Get_Beta(self, Beta):
         Beta = self.NumsOnly(Beta)
-        if(len(Beta) == 0):
+        if(Beta == ""):
             self.Message.emit("Invalid")
             return
         else:
@@ -322,12 +323,12 @@ class MainWindow(QMainWindow):
             self.SDR_Math_worker.pause()
             self.ValidateWorker.Message.connect(CenterFreqLabel_Update)
             self.ValidateWorker.Get_Center_freq(CenterFrequencyEdit.text())
-            self.ValidateWorker.Message.disconnect(CenterFreqLabel_Update)
             self.SDR_Math_worker.resume()
         CenterFrequencyEdit.editingFinished.connect(CenterFreqVal)
 
         @pyqtSlot(str)
         def CenterFreqLabel_Update(CenterFreq_Message):
+            self.ValidateWorker.Message.disconnect(CenterFreqLabel_Update)
             CenterFrequencyEdit.setText(CenterFreq_Message)
 
         TimePlotAuto = QPushButton("Time Plot\nAuto Range")
@@ -359,12 +360,12 @@ class MainWindow(QMainWindow):
             self.SDR_Math_worker.pause()
             self.ValidateWorker.Message.connect(RBW_Edit_Update)
             self.ValidateWorker.Get_RBW(RBWEdit.text())
-            self.ValidateWorker.Message.disconnect(RBW_Edit_Update)
             self.SDR_Math_worker.resume()
         RBWEdit.editingFinished.connect(RBW_Update)
 
         @pyqtSlot(str)
         def RBW_Edit_Update(RBW_Message):
+            self.ValidateWorker.Message.disconnect(RBW_Edit_Update)
             RBWEdit.setText(RBW_Message)
 
         # Video BandWidth (VBW) control
@@ -376,12 +377,12 @@ class MainWindow(QMainWindow):
             self.SDR_Math_worker.pause()
             self.ValidateWorker.Message.connect(VBW_Edit_Update)
             self.ValidateWorker.Get_VBW(VBWEdit.text())
-            self.ValidateWorker.Message.disconnect(VBW_Edit_Update)
             self.SDR_Math_worker.resume()
         VBWEdit.editingFinished.connect(VBW_Update)
 
         @pyqtSlot(str)
         def VBW_Edit_Update(VBW_Message):
+            self.ValidateWorker.Message.disconnect(VBW_Edit_Update)
             VBWEdit.setText(VBW_Message)
 
         WindowFunctSelection = QComboBox()
@@ -401,11 +402,11 @@ class MainWindow(QMainWindow):
         def Beta_Update():
             self.ValidateWorker.Message.connect(Beta_Edit_Update)
             self.ValidateWorker.Get_Beta(BetaEdit.text())
-            self.ValidateWorker.Message.disconnect(Beta_Edit_Update)
         BetaEdit.editingFinished.connect(Beta_Update)
 
         @pyqtSlot(str)
         def Beta_Edit_Update(Beta_Message):
+            self.ValidateWorker.Message.disconnect(Beta_Edit_Update)
             BetaEdit.setText(Beta_Message)
 
         #Cursors
@@ -453,7 +454,7 @@ class MainWindow(QMainWindow):
                     FreqSpectrumCursor = MakeCursor(90, sdr.center_freq)
                     FrequencySpectrumPlot.addItem(FreqSpectrumCursor)
                 case 3:  # WaterFall Plot
-                    WaterFallCursor = MakeCursor(90, 1000)
+                    WaterFallCursor = MakeCursor(90, sdr.center_freq)
                     WaterFallPlot.addItem(WaterFallCursor)
                 case _:
                     pass
